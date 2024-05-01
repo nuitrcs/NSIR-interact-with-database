@@ -1,0 +1,519 @@
+---
+title: "Intro to flextable"
+output: word_document
+date: "2024-03-25"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# Loading Packages
+
+```{r}
+#| label: setup
+#| include: false
+
+if (!("tidyverse" %in% installed.packages()[,"Package"])) install.packages("tidyverse")
+if (!("DBI" %in% installed.packages()[,"Package"])) install.packages("DBI")
+if (!("RSQLite" %in% installed.packages()[,"Package"])) install.packages("RSQLite")
+
+library(tidyverse)
+library(DBI)
+```
+
+# Introduction
+
+A database is an electronically stored collection of data. Typically
+large amount of data lives inside a database, and it is often important
+to know how to extract the right information. One type of database is
+called **relational database**, in which several tables, consisting of
+rows and columns (e.g. data frame), are related to one another.
+
+To connect to and interact with databases, you have to install
+appropriate system and software and make **SQL** (Structured Query
+Language) queries to the database, which can be time consuming
+especially if you don't already know SQL. In this workshop, I will show
+you how to connect to a database using R, and how you can make queries
+without having to directly write SQL.
+
+# Connecting to a Database with DBI
+
+First you will need to connect to the database, which is done with
+`DBI::dbConnect()`.
+
+The first argument is always the backend. The backend depends on what
+your *Database Management System* (DBMS). DBMS is the software system
+that the database uses to perform operations. DBMS for relational
+database is called *Relational Database Management System* (RDBMS).
+Examples of RDBMS include Microsoft SQL Server, PostgreSQL, MySQL, and
+SQLite. Separate R Package exists for each of these RDBMS, so all you
+need to do is figure out what RDBMS your database uses and find the
+right package.
+
+```{r, eval = FALSE}
+# If these packages don't exist, then you will get an error
+# for PostgreSQL
+?RPostgres::Postgres
+# for MariaDB
+?RMariaDB::MariaDB
+```
+
+In most cases, the database doesn't exist in a local file (as in within
+your compuater), but in another server, which means you will be remotely
+querying. In these cases, you will often need to input `host`, which is
+the address of the database, `user`, and `password`.
+
+For example, connecting to a PostgreSQL database server would look
+something like:
+
+```{r, eval=FALSE}
+con <- DBI::dbConnect(RPostgres::Postgres(), 
+  host = "database-host", # address of the database
+  user = "jshlee", # username
+  password = rstudioapi::askForPassword("Database password") # password
+)
+```
+
+You should **never** hard code your password into a script for security
+purposes.
+[Posit](https://solutions.posit.co/connections/db/best-practices/managing-credentials/)
+suggests some practices to securely store and use your credentials
+
+For this workshop, we will use SQLite because it is simple and
+straightforward to use - there is no need to set up a separate database
+server, which is great for demonstration!
+
+```{r}
+con <- dbConnect(RSQLite::SQLite(), dbname = "data/sqlite-sakila.db")
+
+con
+```
+
+For this workshop, we will use a **sakila** sample database. This is a
+sample database developed in
+[MySQL](https://dev.mysql.com/doc/sakila/en/) for documentation and
+examples/tutorials/articles. This database represents an imaginary DVD
+rental store, in which customers rent DVDs of different films from
+multiple stores. It also contains information about films, actors,
+transaction id, customer, etc.
+
+The following image shows relationship between tables in the sakila
+database.
+
+![](SQLite3 Sakila Sample Database ERD.png){width="800"}
+
+This is called an Entity Relationship Diagram (ERD), which illustrates
+how entities (in this case, table) relate to one another.
+
+# Database overview with DBI
+
+Let's start by checking available table using `dbListTables`.
+
+```{r}
+con %>% dbListTables()
+```
+
+To check column names of a table in the database, use `dbListFields`.
+
+```{r}
+con %>% dbListFields(name = "actor")
+```
+
+You can read a database table to a data frame using `dbReadTable`
+
+```{r}
+con %>% dbReadTable("actor") %>% tibble()
+```
+
+If you already know some SQL, you can also directly make SQL queries
+with `dbSendQuery()`
+
+```{r}
+# select all actors where first name starts with P
+stmt <- "SELECT * FROM actor WHERE first_name LIKE 'P%';"
+res <- dbGetQuery(con, stmt)
+res
+```
+
+## Exercise 1
+
+Let's review some of the concepts we just learned.
+
+List all the tables in the database
+
+```{r}
+
+```
+
+List all columns in the `city` table
+
+```{r}
+
+```
+
+From the `city` table, retrieve cities with `country_id = 103`.
+
+**Note** You can do this two ways - by directly reading to a data frame,
+or using SQL query. Don't worry if you don't know SQL! SQL syntax is not
+the scope of this workshop, and we will soon learn a powerful feature of
+`dplyr` that lets us query from the database without explicitly writing
+SQL!
+
+```{r}
+
+```
+
+# Making Queries with dplyr
+
+If you are familiar with `tidyverse` framework, you're probably also
+familiar with the `dplyr` verbs. `dplyr` provides a set of tools that
+help you with common data manipulation problems. The verbs and functions
+from `dplyr` can also be used on database connections, relieving you of
+the responsibility of generating your own SQL queries!
+
+This is possible because `dplyr` has different backends that drive the
+functions. The type of backend used depends on the kind of data you are
+working with. For database systems,
+[`dbplyr`](https://dbplyr.tidyverse.org/) works as a backend. This
+allows you to use the database tables as if they are data frames
+residing in your memory. Behind the scenes, it automatically converts
+the dplyr code into SQL.
+
+In general, there are three parts to working with database using
+`dplyr`:
+
+-   create database table object with `tbl()`
+-   generate query
+-   retrieve data with `collect()`
+
+Let's first create an object that represents a database table
+
+```{r}
+actor <- tbl(con, "actor")
+actor
+```
+
+It looks like a regular tibble, but you can see from the top that is a
+table from a SQLite database.
+
+If you try indexing like you would with a regular data frame or a
+tibble, you will get an error
+
+```{r error=TRUE}
+actor[1,]
+```
+
+To retrieve the data, you will need to run `collect()` on it
+
+```{r}
+actor <- collect(actor)
+actor
+```
+
+## Selecting columns
+
+You can select columns to extract using \`select()
+
+```{r}
+film_tbl <- tbl(con, "film")
+
+film <- film_tbl %>%
+  select(title, release_year, length, rating) %>%
+  collect()
+
+head(film)
+```
+
+## Rename Columns
+
+You can also rename the columns
+
+```{r}
+film <- film_tbl %>%
+  select(title, release_year, length, rating) %>%
+  rename(year = release_year) %>%
+  collect()
+
+head(film)
+```
+
+## Filter Observations
+
+`filter()` filters observations.
+
+```{r}
+long_films <- film_tbl %>%
+  select(title, release_year, length, rating) %>%
+  rename(year = release_year) %>%
+  filter(length > 180 & year == "2006") %>%
+  collect()
+```
+
+## Show Query
+
+When I was introducing `dbplyr` I mentioned that it translate from
+`dplyr` verbs into SQL. `show_query()` displays the query generated.
+This is useful when you are trying to debug your code or if you're
+learning SQL!
+
+```{r}
+# notice how I haven't run collect() yet
+long_films_query <- film_tbl %>%
+  select(title, release_year, length, rating) %>%
+  rename(year = release_year) %>%
+  filter(length > 180 & year == "2006")
+
+# generate SQL query
+long_films_query %>% show_query()
+```
+
+### Exercise 2
+
+Using `dplyr` (with `dbplyr` backend), retrieve a list of film where
+`replacement_cost` is over 20 and rating is `R`. Get columns `title`,
+`description`, `rental_duration`, `special_features`,
+`replacement_cost`, and `rating`.
+
+```{r}
+
+```
+
+BONUS
+
+If you have time, try to figure out why I used `"2006"` to filter year
+instead of doing `2006`. If I do `2006`, no rows are retrieved. (Hint:
+`2006L` also works)
+
+```{r}
+film_tbl %>%
+  select(title, release_year, length, rating) %>%
+  rename(year = release_year) %>%
+  filter(length > 180 & year == 2006) %>%
+  collect()
+```
+
+## Order by Column
+
+Use `arrange()` to order by column(s).
+
+```{r}
+film_tbl %>%
+  select(title, release_year, length, rating) %>%
+  rename(year = release_year) %>%
+  filter(length > 180 & year == "2006") %>%
+  arrange(length, desc(rating)) %>%
+  collect()
+```
+
+## Group Observations
+
+Use `group_by()` to group observations, and use `summarize()` calculate
+a summary statistic and select columns.
+
+For example, let's look at top 5 customer paid the most for rental using
+`payment` table.
+
+```{r}
+payment_tbl <- tbl(con, "payment")
+payment_tbl
+
+payment_tbl %>%
+  group_by(customer_id) %>%
+  summarize(
+    amount_sum = sum(amount),
+    num_rental = count()
+  ) %>%
+  arrange(desc(amount_sum)) %>% 
+  head(5) %>%
+  collect()
+```
+
+## Joining Tables
+
+Joins can also be done in `dplyr` syntax.
+
+Suppose I want to identify films that generated the most amount of money
+through rental.
+
+Lets look at following tables.
+
+```{r}
+rental_tbl <- tbl(con, "rental")
+inventory_tbl <- tbl(con, "inventory")
+```
+
+`payment` table:
+
+```{r}
+payment_tbl
+```
+
+`rental` table:
+
+```{r}
+rental_tbl
+```
+
+`inventory` table:
+
+```{r}
+inventory_tbl
+```
+
+The `payment` table has `rental_id` column, but this column doesn't tell
+me which film was rented since this is an id for the transaction that
+took place.
+
+To identify the film, we need to get the `inventory_id` of the
+corresponding transaction from `rental` table and map that to `film_id`
+in the `inventory` table.
+
+Let's first join `rental` and `inventory` table
+
+```{r}
+rental_to_film_tbl <- rental_tbl %>%
+  select(rental_id, inventory_id) %>%
+  left_join(
+    inventory_tbl %>%
+      select(inventory_id, film_id)
+    , by = "inventory_id"
+  )
+rental_to_film_tbl
+```
+
+I'm not using `collect()` just yet because I'm using this to join back
+into payment table
+
+```{r}
+payment_film_tbl <- payment_tbl %>%
+  left_join(
+    rental_to_film_tbl,
+    by = "rental_id"
+    ) %>%
+  select(rental_id, film_id, amount)
+payment_film_tbl
+```
+
+Now we have a table that shows which film wasa rented for how much.
+Finally, we can group by film and identify the most successful film.
+
+```{r}
+payment_film_tbl %>%
+  group_by(film_id) %>%
+  summarise(total_amount = sum(amount)) %>%
+  arrange(desc(total_amount)) %>%
+  collect() %>%
+  head(10)
+  
+```
+
+### Exercise 3
+
+The following code retrieves a table that records total rental amount
+from each film id. This is the same table from the previous
+demonstration minus the ordering and collecting stage.
+
+Unfortunately, it still doesn't tell us much about what the films really
+are. Can you use join to retrieve the title and description of these
+films, and show the top 10 results?
+
+```{r}
+payment_tbl <- tbl(con, "payment")
+rental_tbl <- tbl(con, "rental")
+inventory_tbl <- tbl(con, "inventory")
+
+rental_to_film_tbl <- rental_tbl %>%
+  select(rental_id, inventory_id) %>%
+  left_join(
+    inventory_tbl %>%
+      select(inventory_id, film_id)
+    , by = "inventory_id"
+  )
+payment_film_tbl <- payment_tbl %>%
+  left_join(
+    rental_to_film_tbl,
+    by = "rental_id"
+    ) %>%
+  select(rental_id, film_id, amount)
+top_films_tbl <- payment_film_tbl %>%
+  group_by(film_id) %>%
+  summarise(total_amount = sum(amount))
+
+top_films_tbl
+```
+
+```{r}
+
+```
+
+## Conclusion
+
+In this workshop you learned how to connect to and interact with a
+database within R environment with tidyverse framework. This is a very
+valuable tool since it allows us to transform and extract information
+from databases without having to constantly switch back and forth
+between thinking in R and in SQL. You can make different types of
+queries just by using `dplyr` verbs, which also helps with maintaining
+easily understandable code.
+
+To learn more about dbplyr and its features, I recommend you visit the
+[package webpage](https://dbplyr.tidyverse.org/), and [this
+section](https://r4ds.hadley.nz/databases) in **R for Data Science**
+book.
+
+As your query becomes more complex, you inevitably run into unexpected
+bugs and errors. In these cases, it is helpful to know SQL since you'll
+be using `show_query()` to retrieve the actual query being made and
+understand what needs to be fixed. We have previously offered workshop
+in [SQL](https://github.com/nuitrcs/intro_to_SQL), so I encourage you to
+check it out!
+
+# Exercise Solutions
+
+## Exercise 1
+
+```{r}
+dbListTables(con)
+```
+
+```{r}
+dbListFields(con, "city")
+```
+
+```{r}
+# by reading to df
+ex1_a <- con %>% 
+  dbReadTable("city") %>% 
+  tibble() %>%
+  filter(country_id == 103)
+
+# by sql query
+stmt <- "SELECT * FROM city WHERE country_id = 103;"
+ex1_b <- dbGetQuery(con, stmt)
+
+all.equal(ex1_a$city, ex1_b$city)
+
+ex1_a
+ex1_b
+```
+
+## Exercise 2
+
+```{r}
+film_tbl %>%
+  select(title, description, rental_duration, special_features, replacement_cost, rating) %>%
+  filter(replacement_cost > 20 & rating == "R") %>% show_query()
+```
+
+## Exercise 3
+
+```{r}
+film_tbl <- tbl(con, "film")
+
+final_table <- film_tbl %>% 
+  right_join(top_films_tbl, by = "film_id") %>%
+  select(title, description, total_amount) %>%
+  arrange(desc(total_amount)) %>%
+  collect() %>%
+  head(10)
+```
