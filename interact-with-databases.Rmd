@@ -41,9 +41,9 @@ without having to directly write SQL.
 First you will need to connect to the database, which is done with
 `DBI::dbConnect()`.
 
-The first argument is always the backend. The backend depends on what
-your *Database Management System* (DBMS). DBMS is the software system
-that the database uses to perform operations. DBMS for relational
+The first argument is always the **backend**. The backend depends on
+what your *Database Management System* (DBMS). DBMS is the software
+system that the database uses to perform operations. DBMS for relational
 database is called *Relational Database Management System* (RDBMS).
 Examples of RDBMS include Microsoft SQL Server, PostgreSQL, MySQL, and
 SQLite. Separate R Package exists for each of these RDBMS, so all you
@@ -53,21 +53,22 @@ right package.
 ```{r, eval = FALSE}
 # If these packages don't exist, then you will get an error
 # for PostgreSQL
-?RPostgres::Postgres
+?RPostgres::Postgres()
 # for MariaDB
-?RMariaDB::MariaDB
+?RMariaDB::MariaDB()
 ```
 
 In most cases, the database doesn't exist in a local file (as in within
-your compuater), but in another server, which means you will be remotely
-querying. In these cases, you will often need to input `host`, which is
-the address of the database, `user`, and `password`.
+your computer), but in an online server. In these cases, you will often
+need to input `host=`, which is the address of the database, `user`, and
+`password`.
 
 For example, connecting to a PostgreSQL database server would look
 something like:
 
 ```{r, eval=FALSE}
-con <- DBI::dbConnect(RPostgres::Postgres(), 
+con <- DBI::dbConnect(
+  RPostgres::Postgres(), 
   host = "database-host", # address of the database
   user = "jshlee", # username
   password = rstudioapi::askForPassword("Database password") # password
@@ -100,14 +101,14 @@ transaction id, customer, etc.
 The following image shows relationship between tables in the sakila
 database.
 
-![](SQLite3 Sakila Sample Database ERD.png){width="800"}
+![](SQLite3%20Sakila%20Sample%20Database%20ERD.png){width="800"}
 
 This is called an Entity Relationship Diagram (ERD), which illustrates
 how entities (in this case, table) relate to one another.
 
-# Database overview with DBI
+# Using DBI
 
-Let's start by checking available table using `dbListTables`.
+Let's start by checking available tables using `dbListTables`.
 
 ```{r}
 con %>% dbListTables()
@@ -126,7 +127,7 @@ con %>% dbReadTable("actor") %>% tibble()
 ```
 
 If you already know some SQL, you can also directly make SQL queries
-with `dbSendQuery()`
+with `dbGetQuery()`
 
 ```{r}
 # select all actors where first name starts with P
@@ -212,7 +213,7 @@ actor
 
 ## Selecting columns
 
-You can select columns to extract using \`select()
+You can select columns to extract using `select()`
 
 ```{r}
 film_tbl <- tbl(con, "film")
@@ -247,6 +248,7 @@ long_films <- film_tbl %>%
   rename(year = release_year) %>%
   filter(length > 180 & year == "2006") %>%
   collect()
+long_films
 ```
 
 ## Show Query
@@ -269,9 +271,9 @@ long_films_query %>% show_query()
 
 ### Exercise 2
 
-Using `dplyr` (with `dbplyr` backend), retrieve a list of film where
-`replacement_cost` is over 20 and rating is `R`. Get columns `title`,
-`description`, `rental_duration`, `special_features`,
+Using `dplyr` (with `dbplyr` backend), retrieve a list of films where
+`replacement_cost` is over 20 and `rating` is `"R"`. Retrieve columns
+`title`, `description`, `rental_duration`, `special_features`,
 `replacement_cost`, and `rating`.
 
 ```{r}
@@ -289,7 +291,7 @@ film_tbl %>%
   select(title, release_year, length, rating) %>%
   rename(year = release_year) %>%
   filter(length > 180 & year == 2006) %>%
-  collect()
+  show_query()
 ```
 
 ## Order by Column
@@ -394,7 +396,7 @@ payment_film_tbl <- payment_tbl %>%
 payment_film_tbl
 ```
 
-Now we have a table that shows which film wasa rented for how much.
+Now we have a table that shows which film was rented for how much.
 Finally, we can group by film and identify the most successful film.
 
 ```{r}
@@ -416,6 +418,8 @@ demonstration minus the ordering and collecting stage.
 Unfortunately, it still doesn't tell us much about what the films really
 are. Can you use join to retrieve the title and description of these
 films, and show the top 10 results?
+
+HINT: `film` table contains these information
 
 ```{r}
 payment_tbl <- tbl(con, "payment")
@@ -443,7 +447,7 @@ top_films_tbl
 ```
 
 ```{r}
-
+  
 ```
 
 ## Conclusion
