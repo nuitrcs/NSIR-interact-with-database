@@ -23,18 +23,29 @@ library(DBI)
 
 # Introduction
 
-A database is an electronically stored collection of data. Typically
-large amount of data lives inside a database, and it is often important
-to know how to extract the right information. One type of database is
-called **relational database**, in which several tables, consisting of
-rows and columns (e.g. data frame), are related to one another.
+A database is an electronically stored collection of data. Sometimes the
+data you work with can be so large that it cannot be loaded onto your
+computer's memory (e.g. reading a csv file into a `data.frame`).
+Database helps overcome this hardware limitation by letting you extract
+information without having to load the entire data.
 
-To connect to and interact with databases, you have to install
-appropriate system and software and make **SQL** (Structured Query
-Language) queries to the database, which can be time consuming
-especially if you don't already know SQL. In this workshop, I will show
-you how to connect to a database using R, and how you can make queries
-without having to directly write SQL.
+Typically large amount of data lives inside a database, and how you
+extract information depends on the type of database. **Relational
+database** is the most widely used type of database; this is a type of
+database in which several tables, consisting of rows and columns (e.g.
+data frame), are related to one another.
+
+![Relation Database Diagram
+Example](relational-database-diagram.jpg){width="678"}
+
+To connect to and interact with relational databases, you have to
+install appropriate system and software and make **SQL** (Structured
+Query Language) queries to the database, which can be time consuming
+especially if you aren't already familiar with the syntax. Luckily, R
+developers have worked hard to make working with relational database
+possible without having to write SQL. In this workshop, I will show you
+how to connect to a database using R, and how you can make queries with
+R functions (no writing SQL necessary!).
 
 # Connecting to a Database with DBI
 
@@ -42,7 +53,7 @@ First you will need to connect to the database, which is done with
 `DBI::dbConnect()`.
 
 The first argument is always the **backend**. The backend depends on
-what your *Database Management System* (DBMS). DBMS is the software
+what your *Database Management System* (DBMS) is. DBMS is the software
 system that the database uses to perform operations. DBMS for relational
 database is called *Relational Database Management System* (RDBMS).
 Examples of RDBMS include Microsoft SQL Server, PostgreSQL, MySQL, and
@@ -59,8 +70,8 @@ right package.
 ```
 
 In most cases, the database doesn't exist in a local file (as in within
-your computer), but in an online server. In these cases, you will often
-need to input `host=`, which is the address of the database, `user`, and
+your computer), but in an online server. In these cases, you need to
+input `host=`, which is the address of the database, `user`, and
 `password`.
 
 For example, connecting to a PostgreSQL database server would look
@@ -75,8 +86,8 @@ con <- DBI::dbConnect(
 )
 ```
 
-You should **never** hard code your password into a script for security
-purposes.
+\***NOTE**: You should **never** hard code your password into a script
+for security purposes.
 [Posit](https://solutions.posit.co/connections/db/best-practices/managing-credentials/)
 suggests some practices to securely store and use your credentials
 
@@ -120,7 +131,7 @@ To check column names of a table in the database, use `dbListFields`.
 con %>% dbListFields(name = "actor")
 ```
 
-You can read a database table to a data frame using `dbReadTable`
+You can retrieve a database table to a data frame using `dbReadTable`
 
 ```{r}
 con %>% dbReadTable("actor") %>% tibble()
@@ -213,13 +224,22 @@ actor
 
 ## Selecting columns
 
+Let's look at `film` table:
+
+```{r}
+con %>% dbListFields("film")
+```
+
 You can select columns to extract using `select()`
 
 ```{r}
+# create db table object
 film_tbl <- tbl(con, "film")
 
 film <- film_tbl %>%
-  select(title, release_year, length, rating) %>%
+  # make query
+  select(title, release_year, length, rating) %>% 
+  # collect
   collect()
 
 head(film)
@@ -227,7 +247,8 @@ head(film)
 
 ## Rename Columns
 
-You can also rename the columns
+You can also rename the columns. Notice how because we already created a
+database table object, we don't have to define it again.
 
 ```{r}
 film <- film_tbl %>%
@@ -283,37 +304,41 @@ Using `dplyr` (with `dbplyr` backend), retrieve a list of films where
 BONUS
 
 If you have time, try to figure out why I used `"2006"` to filter year
-instead of doing `2006`. If I do `2006`, no rows are retrieved. (Hint:
-`2006L` also works)
+instead of doing `2006` in the previous example. If I do `2006`, no rows
+are retrieved. (Hint: `2006L` also works)
 
 ```{r}
 film_tbl %>%
   select(title, release_year, length, rating) %>%
   rename(year = release_year) %>%
   filter(length > 180 & year == 2006) %>%
-  show_query()
+  collect()
 ```
 
 ## Order by Column
 
-Use `arrange()` to order by column(s).
+Use `arrange()` to order by column(s). By default, it orders in
+increasing order. If you want to order in decreasing order based on a
+column, wrap the column in `desc()` function.
 
 ```{r}
 film_tbl %>%
   select(title, release_year, length, rating) %>%
   rename(year = release_year) %>%
   filter(length > 180 & year == "2006") %>%
+  # order table by increasing length and decreasing rating (Alphabetical)
   arrange(length, desc(rating)) %>%
   collect()
 ```
 
 ## Group Observations
 
-Use `group_by()` to group observations, and use `summarize()` calculate
-a summary statistic and select columns.
+Use `group_by()` to group observations, and use `summarize()` to
+calculate a summary statistic and select columns.
 
-For example, let's look at top 5 customer paid the most for rental using
-`payment` table.
+For example, let's look at top 5 customers who paid the most for rental
+using `payment` table. Let's calculate the total payment amount and
+number of rentals.
 
 ```{r}
 payment_tbl <- tbl(con, "payment")
@@ -334,8 +359,8 @@ payment_tbl %>%
 
 Joins can also be done in `dplyr` syntax.
 
-Suppose I want to identify films that generated the most amount of money
-through rental.
+Suppose I want to identify films that generated the most revenue through
+rental.
 
 Lets look at following tables.
 
