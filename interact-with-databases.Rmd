@@ -31,9 +31,9 @@ information without having to load the entire data.
 
 Typically large amount of data lives inside a database, and how you
 extract information depends on the type of database. **Relational
-database** is the most widely used type of database; this is a type of
-database in which several tables, consisting of rows and columns (e.g.
-data frame), are related to one another.
+database** is the most widely used type; this is a type of database in
+which several tables, consisting of rows and columns (e.g. data frame),
+are related to one another.
 
 ![Relation Database Diagram
 Example](relational-database-diagram.jpg){width="678"}
@@ -49,7 +49,7 @@ R functions (no writing SQL necessary!).
 
 # Connecting to a Database with DBI
 
-First you will need to connect to the database, which is done with
+First you will need to connect to the database. This is done with
 `DBI::dbConnect()`.
 
 The first argument is always the **backend**. The backend depends on
